@@ -1,0 +1,7 @@
+version: '3'
+services:
+  chess-engine:
+    build: .
+    volumes:
+      - .:/app
+    platform: linux/amd64  # Force x86_64 architecture

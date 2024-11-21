@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
+#include "../common/types.h"
 #include "../bitboard/bitboard_ops.h"
 
 #ifdef USE_ARM_NEON
@@ -11,11 +12,6 @@
 #else
 #include <immintrin.h>
 #endif
-
-// Constants (unchanged)
-#define NO_PIECE -1
-#define WHITE 0
-#define BLACK 1
 
 #define LIGHT_SQUARES 0x55AA55AA55AA55AAULL
 #define DARK_SQUARES  0xAA55AA55AA55AA55ULL
@@ -42,19 +38,9 @@
 // Memory alignment
 #define ALIGN_32 __attribute__((aligned(32)))
 
-// Position representation
-typedef struct Position {
-    uint64_t pieces[2][6] ALIGN_32;
-    uint64_t occupied[2] ALIGN_32;
-    uint64_t occupied_total;
-    int side_to_move;           // 0 for white, 1 for black
-    uint8_t castling_rights;    // Bitmask for castling rights
-    int en_passant_square;      // Square index for en passant (-1 if none)
-    int halfmove_clock;         // Number of halfmoves since last capture or pawn move
-    int fullmove_number;        // Number of full moves
-} Position;
-
-
+extern Bitboard DEVELOPMENT_MASKS[64];
+extern Bitboard COORDINATION_MASKS[64];
+extern Bitboard STRUCTURE_MASKS[64];
 
 // Architecture-specific pattern structures
 #ifdef USE_ARM_NEON
@@ -145,8 +131,13 @@ static inline int32x4_t calculate_scores_neon(const uint64x2_t matches, const in
 #else
 static int binary_search_simd(const uint32_t* array, uint32_t target, size_t size);
 static uint32_t compress_position(const Position* pos);
-static __m256i evaluate_development_simd(const Position* pos);
+__m256i evaluate_development_simd(const Position* pos);
+__m256i evaluate_center_control_simd(const Position* pos);
 static __m256i evaluate_coordination_simd(const Position* pos);
+__m256i evaluate_king_safety_early_simd(const Position* pos);
+__m256i evaluate_endgame_patterns_simd(const Position* pos);
+__m256i evaluate_winning_potential_simd(const Position* pos);
+__m256i evaluate_fortress_detection_simd(const Position* pos);
 
 // SIMD pattern matching helpers
 static inline __m256i match_pattern_simd(const __m256i position, const SIMDPattern* pattern);

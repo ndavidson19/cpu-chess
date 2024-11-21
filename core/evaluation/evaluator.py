@@ -22,6 +22,19 @@ ROOK = 3
 QUEEN = 4
 KING = 5
 
+
+class Position(Structure):
+    _fields_ = [
+        ("pieces", (c_uint64 * 6) * 2),
+        ("occupied", c_uint64 * 2),
+        ("all_occupied", c_uint64),
+        ("turn", c_int),
+        ("castling_rights", c_uint8),
+        ("ep_square", c_int),
+        ("half_moves", c_int),
+        ("full_moves", c_int)
+    ]
+
 class Pattern(Structure):
     _fields_ = [
         ("mask", c_uint64),
@@ -69,7 +82,8 @@ class EvalContext(Structure):
         ("stage", c_int),
         ("turn", c_int),
         ("castling_rights", c_uint8),
-        ("terms", EvalTerms)
+        ("terms", EvalTerms),
+        ("pos", POINTER(Position)),
     ]
 
 
@@ -111,8 +125,12 @@ class Evaluator:
         self.lib = self._load_evaluator_lib()
         self._setup_function_signatures()
         self._initialize_tables()
+
+        # Create a Position instance
+        self.current_position = Position()
         self.context = EvalContext()
-        
+        self.context.pos = pointer(self.current_position)
+
         # Pre-allocate buffers for SIMD operations
         self.position_buffer = np.zeros(32, dtype=np.int32)
         self.weight_buffer = np.zeros(32, dtype=np.int32)
@@ -292,8 +310,25 @@ class Evaluator:
             return self.lib.get_king_attacks(square)
         return 0
 
+    def _update_position(self, board):
+        """Update the Position structure from the board"""
+        for color in range(2):
+            for piece_type in range(6):
+                bb = self._get_piece_bitboard(board, color, piece_type)
+                self.current_position.pieces[color][piece_type] = bb
+        for color in range(2):
+            self.current_position.occupied[color] = self.context.occupied[color]
+        self.current_position.occupied_total = self.context.all_occupied
+        self.current_position.side_to_move = self.context.turn
+        self.current_position.castling_rights = self.context.castling_rights
+        self.current_position.en_passant_square = board.ep_square if board.ep_square else -1
+        self.current_position.halfmove_clock = board.halfmove_clock
+        self.current_position.fullmove_number = board.fullmove_number
+
     def _update_context(self, board):
         """Update evaluation context from board position"""
+        self._update_position(board)
+
         # Update piece bitboards and counts
         for color in range(2):
             for piece_type in range(6):

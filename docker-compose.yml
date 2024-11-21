@@ -5,3 +5,7 @@ services:
     volumes:
       - .:/app
     platform: linux/amd64  # Force x86_64 architecture
+    tty: true
+    stdin_open: true
+    command: tail -f /dev/null
+

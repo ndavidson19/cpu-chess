@@ -2,6 +2,7 @@
 #define BITBOARD_OPS_H
 
 #include <stdint.h>
+#include "../common/types.h"
 
 // Architecture-specific includes
 #ifdef USE_ARM_NEON
@@ -14,8 +15,6 @@
 typedef uint64_t Bitboard;
 
 // Board representation constants 
-#define WHITE 0
-#define BLACK 1
 #define FILE_A 0x0101010101010101ULL
 #define FILE_B 0x0202020202020202ULL
 #define FILE_C 0x0404040404040404ULL
@@ -24,17 +23,6 @@ typedef uint64_t Bitboard;
 #define FILE_F 0x2020202020202020ULL
 #define FILE_G 0x4040404040404040ULL
 #define FILE_H 0x8080808080808080ULL
-
-// Define Piece Types
-typedef enum {
-    PAWN = 0,
-    KNIGHT,
-    BISHOP,
-    ROOK,
-    QUEEN,
-    KING,
-    NUM_PIECE_TYPES // Helps in array sizes
-} PieceType;
 
 // Magic Bitboard constants 
 #define ROOK_MAGIC_COUNT 64

@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "../evaluation/eval_ops.h"
+#include "../utils/utils.h"
+#include "../move/move.h"
 
 // Constants for search
 #define INFINITY_SCORE 32000
@@ -18,8 +21,51 @@
 #define TT_ALPHA 1
 #define TT_BETA 2
 
+uint64_t piece_keys[2][6][64];
+uint64_t castling_keys[16];
+uint64_t en_passant_keys[64];
+uint64_t side_key;
+
+
+void init_hash_keys() {
+   // Initialize using a PRNG seed
+   uint64_t seed = 0x123456789ABCDEF0ULL;
+   
+   for (int c = 0; c < 2; c++) {
+       for (int p = 0; p < 6; p++) {
+           for (int s = 0; s < 64; s++) {
+               seed ^= seed >> 12;
+               seed ^= seed << 25;
+               seed ^= seed >> 27;
+               piece_keys[c][p][s] = seed * 2685821657736338717ULL;
+           }
+       }
+   }
+
+   for (int i = 0; i < 16; i++) {
+       seed ^= seed >> 12;
+       seed ^= seed << 25;
+       seed ^= seed >> 27;
+       castling_keys[i] = seed * 2685821657736338717ULL;
+   }
+
+   for (int i = 0; i < 64; i++) {
+       seed ^= seed >> 12;
+       seed ^= seed << 25; 
+       seed ^= seed >> 27;
+       en_passant_keys[i] = seed * 2685821657736338717ULL;
+   }
+
+   seed ^= seed >> 12;
+   seed ^= seed << 25;
+   seed ^= seed >> 27;
+   side_key = seed * 2685821657736338717ULL;
+}
+
 // Initialize search context
 void init_search(SearchContext* ctx, uint32_t tt_size) {
+    // Initialize hash keys
+    init_hash_keys();
     ctx->tt = (TTEntry*)aligned_alloc(32, tt_size * sizeof(TTEntry));
     ctx->tt_size = tt_size;
     memset(ctx->tt, 0, tt_size * sizeof(TTEntry));
@@ -27,6 +73,70 @@ void init_search(SearchContext* ctx, uint32_t tt_size) {
     memset(ctx->killers, 0, sizeof(ctx->killers));
     memset(&ctx->stats, 0, sizeof(SearchStats));
     ctx->stop_search = false;
+}
+
+
+
+void store_tt(SearchContext* ctx, uint64_t key, int score, uint16_t move, 
+                          int depth, uint8_t flag) {
+    // Get index in transposition table (typically using lower bits of hash)
+    const size_t index = key & (ctx->tt_size - 1);  // Assumes tt_size is power of 2
+    TTEntry* entry = &ctx->tt[index];
+    
+    // Always replace if:
+    // 1. Empty slot (key == 0)
+    // 2. Current position has greater depth
+    // 3. Current entry is old (from previous search)
+    // 4. Same position but current search is deeper
+    if (entry->key == 0 || 
+        depth >= entry->depth || 
+        entry->age != ctx->tt_age ||
+        entry->key == key) {
+        
+        // Handle mate scores before storing
+        if (score > MATE_IN_MAX) {
+            score += ctx->ply;
+        } else if (score < -MATE_IN_MAX) {
+            score -= ctx->ply;
+        }
+        
+        // Update the entry
+        entry->key = key;
+        entry->move = move;
+        entry->score = score;
+        entry->depth = depth;
+        entry->flag = flag;
+        entry->age = ctx->tt_age;
+    }
+}
+
+uint64_t get_hash_key(const Position* pos) {
+    uint64_t hash = 0;
+    for (int color = 0; color < 2; color++) {
+        for (int piece = 0; piece < 6; piece++) {
+            uint64_t pieces = pos->pieces[color][piece];
+            while (pieces) {
+                int square = __builtin_ctzll(pieces);
+                hash ^= piece_keys[color][piece][square];
+                pieces &= (pieces - 1);
+            }
+        }
+    }
+    
+    hash ^= castling_keys[pos->castling_rights];
+    if (pos->en_passant_square >= 0) {
+        hash ^= en_passant_keys[pos->en_passant_square];
+    }
+    if (pos->side_to_move) {
+        hash ^= side_key;
+    }
+    
+    return hash;
+}
+
+TTEntry* probe_tt(const SearchContext* ctx, uint64_t key) {
+    const size_t index = key & (ctx->tt_size - 1);
+    return &ctx->tt[index];
 }
 
 // Main alpha-beta search with modern pruning techniques
@@ -250,7 +360,7 @@ SearchResult search_position(Position* pos, SearchParams* params, SearchContext*
 
 
 // Utility functions
-static inline void update_history(SearchContext* ctx, uint16_t move, int depth) {
+void update_history(SearchContext* ctx, uint16_t move, int depth) {
     int from = get_move_from(move);
     int to = get_move_to(move);
     int color = get_move_color(move);
@@ -265,7 +375,7 @@ static inline void update_history(SearchContext* ctx, uint16_t move, int depth) 
     }
 }
 
-static inline void update_killers(SearchContext* ctx, uint16_t move, int ply) {
+void update_killers(SearchContext* ctx, uint16_t move, int ply) {
     if (move != ctx->killers[0][ply]) {
         ctx->killers[1][ply] = ctx->killers[0][ply];
         ctx->killers[0][ply] = move;

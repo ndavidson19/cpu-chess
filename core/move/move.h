@@ -5,7 +5,9 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../evaluation/patterns.h"
+#include "../common/types.h"
+#include "../common/context.h"
+
 
 // Constants for move encoding
 #define MOVE_FROM_SHIFT     0
@@ -21,6 +23,14 @@
 #define MOVE_CAPTURE_MASK   0xF0000     // 4 bits shifted
 #define MOVE_PROMO_MASK     0xF00000    // 4 bits shifted
 #define MOVE_FLAGS_MASK     0xF000000   // 4 bits shifted
+
+
+// Memory-efficient move representation
+typedef struct {
+    uint16_t move;      // Packed move (from:6|to:6|promotion:4)
+    int16_t score;      // Move score for ordering
+} SearchMove;
+
 
 // Function to create a move
 static inline uint32_t create_move(int from, int to, int piece, int captured, int promotion, int flags) {
@@ -58,10 +68,18 @@ static inline int get_move_flags(uint32_t move) {
 }
 
 bool in_check(const Position* pos);
+bool is_square_attacked(const Position* pos, int square, int color);
 void make_move(Position* pos, uint32_t move);
 void undo_move(Position* pos);
 void make_null_move(Position* pos);
 void undo_null_move(Position* pos);
-
+void sort_moves(SearchMove* moves, int count, const SearchContext* ctx, int ply);
+int score_move(uint16_t move, const SearchContext* ctx, int ply);
+int generate_moves(const Position* pos, SearchMove* moves);
+int generate_captures(const Position* pos, SearchMove* moves);
+int get_captured_piece(uint16_t move);
+int get_move_color(uint16_t move);
+int get_piece_value(int piece);
+static int get_piece_at(const Position* pos, int square, int color);
 
 #endif // MOVE_H

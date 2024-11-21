@@ -1,3 +1,4 @@
 cpu_chess.egg-info/
 build
 __pycache__/
+lib/cpu_chess.so

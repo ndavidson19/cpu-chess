@@ -106,6 +106,9 @@ typedef struct {
     
     // Evaluation accumulators
     EvalTerms terms;
+
+    // Position pointer
+    Position* pos;
 } EvalContext;
 
 // Architecture-specific evaluation functions

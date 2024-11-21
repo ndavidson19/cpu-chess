@@ -25,9 +25,9 @@ COPY lib ./lib/
 RUN python setup.py build_ext --inplace
 
 # Ensure the .so file is renamed to cpu_chess.so and moved to /app/lib
-RUN mkdir -p /app/lib \
-    && cp build/lib.linux-x86_64-3.9/lib/cpu_chess*.so /app/lib/ \
-    && mv /app/lib/cpu_chess*.so /app/lib/cpu_chess.so
+#RUN mkdir -p /app/lib \
+#    && cp build/lib.linux-x86_64-3.9/lib/cpu_chess*.so /app/lib/ \
+#    && mv /app/lib/cpu_chess*.so /app/lib/cpu_chess.so
 
 # Default command
 CMD ["python3"]

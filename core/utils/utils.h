@@ -8,6 +8,14 @@
 
 int64_t get_current_time();
 bool should_stop_search(const SearchContext* ctx);
+int min(int a, int b);
+
+// Game state checking functions
+bool is_draw(const Position* pos);
+bool is_insufficient_material(const Position* pos);
+bool is_stalemate(const Position* pos);
+bool is_checkmate(const Position* pos);
+bool is_square_attacked(const Position* pos, int square, int attacker_color);
 
 
 #ifdef __cplusplus

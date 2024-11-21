@@ -4,6 +4,111 @@
 #include <immintrin.h>
 #include "utils.h"
 
+// Development mask constants
+static const Bitboard KNIGHT_DEVELOPMENT_MASK = 0x0000000000240000ULL;  // Ideal knight squares
+static const Bitboard BISHOP_DEVELOPMENT_MASK = 0x0000000040201008ULL;  // Ideal bishop squares
+static const Bitboard CENTRAL_DEVELOPMENT_MASK = 0x0000001818000000ULL; // Central squares
+static const Bitboard PAWN_DEVELOPMENT_MASK = 0x00000000FF000000ULL;    // Pawn development rank
+
+// Coordination mask constants
+static const Bitboard KNIGHT_COORDINATION_MASK = 0x0000000042000000ULL; // Knights supporting each other
+static const Bitboard BISHOP_COORDINATION_MASK = 0x0000000040201008ULL; // Bishops working together
+static const Bitboard ROOK_COORDINATION_MASK = 0x00000000000000FFULL;   // Rooks on same rank
+static const Bitboard QUEEN_COORDINATION_MASK = 0x0000001818180000ULL;  // Queen coordination with center
+
+// Structure mask constants
+static const Bitboard PAWN_CHAIN_MASK = 0x0000001414141414ULL;         // Ideal pawn chain structure
+static const Bitboard CENTER_CONTROL_MASK = 0x0000001818000000ULL;      // Central control
+static const Bitboard KINGSIDE_STRUCTURE_MASK = 0x00000000000000E0ULL;  // Kingside pawn structure
+static const Bitboard QUEENSIDE_STRUCTURE_MASK = 0x000000000000000EULL; // Queenside pawn structure
+
+// Global arrays to store masks
+Bitboard DEVELOPMENT_MASKS[64] = {0};
+Bitboard COORDINATION_MASKS[64] = {0};
+Bitboard STRUCTURE_MASKS[64] = {0};
+
+void init_development_masks(void) {
+    // Initialize knight development masks
+    for (int square = 0; square < 64; square++) {
+        Bitboard square_mask = 1ULL << square;
+        
+        // Add development targets for knights
+        if (square_mask & KNIGHT_DEVELOPMENT_MASK) {
+            DEVELOPMENT_MASKS[square] |= CENTRAL_DEVELOPMENT_MASK;
+        }
+        
+        // Add development targets for bishops
+        if (square_mask & BISHOP_DEVELOPMENT_MASK) {
+            DEVELOPMENT_MASKS[square] |= CENTRAL_DEVELOPMENT_MASK;
+        }
+        
+        // Add pawn development
+        if (square_mask & PAWN_DEVELOPMENT_MASK) {
+            DEVELOPMENT_MASKS[square] |= CENTRAL_DEVELOPMENT_MASK;
+        }
+    }
+}
+
+void init_coordination_masks(void) {
+    // Initialize piece coordination masks
+    for (int square = 0; square < 64; square++) {
+        Bitboard square_mask = 1ULL << square;
+        
+        // Knight coordination
+        if (square_mask & KNIGHT_COORDINATION_MASK) {
+            COORDINATION_MASKS[square] |= get_knight_attacks(square);
+        }
+        
+        // Bishop coordination
+        if (square_mask & BISHOP_COORDINATION_MASK) {
+            COORDINATION_MASKS[square] |= get_bishop_attacks(square, 0);
+        }
+        
+        // Rook coordination
+        if (square_mask & ROOK_COORDINATION_MASK) {
+            COORDINATION_MASKS[square] |= get_rook_attacks(square, 0);
+        }
+        
+        // Queen coordination
+        if (square_mask & QUEEN_COORDINATION_MASK) {
+            COORDINATION_MASKS[square] |= (get_bishop_attacks(square, 0) | 
+                                         get_rook_attacks(square, 0));
+        }
+    }
+}
+
+void init_structure_masks(void) {
+    // Initialize attack tables first if not already done
+    init_attack_tables();  // This is already defined in bitboard_ops.c
+    
+    // Initialize pawn structure masks
+    for (int square = 0; square < 64; square++) {
+        Bitboard square_mask = 1ULL << square;
+        
+        // Pawn chains
+        if (square_mask & PAWN_CHAIN_MASK) {
+            // We already have a get_pawn_attacks function in bitboard_ops.c
+            STRUCTURE_MASKS[square] |= PAWN_ATTACKS_TABLE[WHITE][square] |
+                                     PAWN_ATTACKS_TABLE[BLACK][square];
+        }
+        
+        // Center control
+        if (square_mask & CENTER_CONTROL_MASK) {
+            STRUCTURE_MASKS[square] |= CENTER_CONTROL_MASK;
+        }
+        
+        // Kingside structure
+        if (square_mask & KINGSIDE_STRUCTURE_MASK) {
+            STRUCTURE_MASKS[square] |= KINGSIDE_STRUCTURE_MASK;
+        }
+        
+        // Queenside structure
+        if (square_mask & QUEENSIDE_STRUCTURE_MASK) {
+            STRUCTURE_MASKS[square] |= QUEENSIDE_STRUCTURE_MASK;
+        }
+    }
+}
+
 // Define the pattern data using arrays of constants
 const SIMDPattern LONDON_PATTERNS[] ALIGN_32 = {
     {
@@ -96,6 +201,21 @@ static __m128i calculate_scores_simd(const __m256i matches, const __m128i scores
     return _mm_and_si128(mask, scores);
 }
 
+// SIMD-optimized structure score calculation
+__m128i horizontal_sum_128(__m128i v) {
+    // Add upper and lower 64 bits
+    __m128i high64 = _mm_unpackhi_epi64(v, v);
+    __m128i sum64 = _mm_add_epi32(v, high64);
+    
+    // Add adjacent 32-bit integers
+    __m128i high32 = _mm_shufflelo_epi16(sum64, _MM_SHUFFLE(1,0,3,2));
+    __m128i sum32 = _mm_add_epi32(sum64, high32);
+    
+    // Add adjacent pairs again to get final sum in lowest 32 bits
+    __m128i high16 = _mm_shufflelo_epi16(sum32, _MM_SHUFFLE(0,1,2,3));
+    return _mm_add_epi32(sum32, high16);
+}
+
 // Memory-efficient endgame tablebases using compressed storage
 static struct {
     uint32_t* positions;     // Compressed position hashes
@@ -105,6 +225,60 @@ static struct {
     bool is_loaded;        // Whether tablebase is currently loaded
     uint16_t material_key;  // Material key for current tablebase
 } endgame_tb = {0};
+
+__m128i calculate_control_scores_simd(__m256i control) {
+    // Define score weights for different control areas
+    const __m128i CONTROL_WEIGHTS = _mm_set_epi32(
+        25,  // Dark square control weight
+        25,  // Light square control weight
+        40,  // Extended center control weight
+        50   // Central squares weight
+    );
+    
+    // Extract control counts for each area into 128-bit registers
+    __m128i counts = _mm_set_epi32(
+        _mm_popcnt_u32(_mm256_extract_epi64(control, 3)),  // Dark squares
+        _mm_popcnt_u32(_mm256_extract_epi64(control, 2)),  // Light squares
+        _mm_popcnt_u32(_mm256_extract_epi64(control, 1)),  // Extended center
+        _mm_popcnt_u32(_mm256_extract_epi64(control, 0))   // Central squares
+    );
+    
+    // Apply additional bonuses for controlling multiple squares in same region
+    const __m128i BONUS_THRESHOLDS = _mm_set_epi32(3, 3, 4, 2);
+    const __m128i BONUS_VALUES = _mm_set_epi32(15, 15, 20, 25);
+    
+    // Calculate bonuses based on thresholds
+    __m128i bonus_mask = _mm_cmpgt_epi32(counts, BONUS_THRESHOLDS);
+    __m128i bonuses = _mm_and_si128(bonus_mask, BONUS_VALUES);
+    
+    // Calculate base scores
+    __m128i base_scores = _mm_mullo_epi32(counts, CONTROL_WEIGHTS);
+    
+    // Combine base scores and bonuses
+    __m128i total_scores = _mm_add_epi32(base_scores, bonuses);
+    
+    // Apply diminishing returns for excessive control
+    const __m128i MAX_SCORES = _mm_set_epi32(100, 100, 150, 200);
+    total_scores = _mm_min_epi32(total_scores, MAX_SCORES);
+    
+    // Handle king safety considerations
+    const __m128i KING_SAFETY_PENALTY = _mm_set_epi32(
+        -10,  // Penalty for weak dark square control near king 
+        -10,  // Penalty for weak light square control near king
+        -20,  // Penalty for weak extended center control
+        -30   // Penalty for weak central control
+    );
+    
+    // Apply safety penalties where control is too weak
+    const __m128i SAFETY_THRESHOLDS = _mm_set_epi32(2, 2, 3, 2);
+    __m128i weak_control = _mm_cmplt_epi32(counts, SAFETY_THRESHOLDS);
+    __m128i safety_penalties = _mm_and_si128(weak_control, KING_SAFETY_PENALTY);
+    
+    // Add safety considerations to final score
+    __m128i final_scores = _mm_add_epi32(total_scores, safety_penalties);
+    
+    return final_scores;
+}
 
 // SIMD-optimized London System evaluation
 int evaluate_london_position(const Position* pos) {
@@ -133,6 +307,60 @@ int evaluate_london_position(const Position* pos) {
     
     // Horizontal sum
     return _mm_extract_epi32(horizontal_sum_128(total_scores), 0);
+}
+
+__m128i calculate_structure_scores_simd(__m256i structure) {
+    // Define score weights for different structure features
+    const __m128i STRUCTURE_WEIGHTS = _mm_set_epi32(
+        15,  // Extended structure bonus
+        25,  // Central control bonus
+        20,  // Connected pawns bonus
+        10   // Basic structure bonus
+    );
+    
+    // Extract upper and lower 128-bit parts
+    __m128i lower = _mm256_extracti128_si256(structure, 0);
+    __m128i upper = _mm256_extracti128_si256(structure, 1);
+    
+    // Count bits in each 32-bit lane to get structure feature counts
+    __m128i counts = _mm_set_epi32(
+        _mm_popcnt_u32(_mm_extract_epi32(upper, 3)),  // Extended structure
+        _mm_popcnt_u32(_mm_extract_epi32(upper, 2)),  // Central control
+        _mm_popcnt_u32(_mm_extract_epi32(lower, 1)),  // Connected pawns
+        _mm_popcnt_u32(_mm_extract_epi32(lower, 0))   // Basic structure
+    );
+    
+    // Apply penalties for overextended structure
+    const __m128i OVEREXTENSION_THRESHOLD = _mm_set1_epi32(4);
+    const __m128i OVEREXTENSION_PENALTY = _mm_set1_epi32(-5);
+    __m128i overextended = _mm_cmpgt_epi32(counts, OVEREXTENSION_THRESHOLD);
+    __m128i penalties = _mm_and_si128(overextended, OVEREXTENSION_PENALTY);
+    
+    // Calculate base scores
+    __m128i base_scores = _mm_mullo_epi32(counts, STRUCTURE_WEIGHTS);
+    
+    // Add penalties to base scores
+    __m128i final_scores = _mm_add_epi32(base_scores, penalties);
+    
+    // Apply position-dependent multipliers
+    const __m128i POSITIONAL_MULTIPLIERS = _mm_set_epi32(
+        2,  // Double score for extended structure
+        3,  // Triple score for central control
+        2,  // Double score for connected pawns
+        1   // Normal score for basic structure
+    );
+    
+    // Multiply scores by positional importance
+    final_scores = _mm_mullo_epi32(final_scores, POSITIONAL_MULTIPLIERS);
+    
+    // Normalize scores to prevent extreme values
+    const __m128i MAX_SCORE = _mm_set1_epi32(100);
+    const __m128i MIN_SCORE = _mm_set1_epi32(-100);
+    
+    final_scores = _mm_min_epi32(final_scores, MAX_SCORE);
+    final_scores = _mm_max_epi32(final_scores, MIN_SCORE);
+    
+    return final_scores;
 }
 
 // SIMD-optimized Caro-Kann evaluation
@@ -382,7 +610,7 @@ static uint32_t compress_position(const Position* pos) {
 }
 
 // Optimized pattern matching with SIMD for development evaluation
-static __m256i evaluate_development_simd(const Position* pos) {
+__m256i evaluate_development_simd(const Position* pos) {
     __m256i piece_development = _mm256_setzero_si256();
     
     // Load piece positions
@@ -412,6 +640,101 @@ static __m256i evaluate_development_simd(const Position* pos) {
     return _mm256_add_epi64(knight_dev, bishop_dev);
 }
 
+__m256i evaluate_center_control_simd(const Position* pos) {
+    // Load piece positions
+    __m256i pawns = _mm256_load_si256((__m256i*)&pos->pieces[0][PAWN]);
+    __m256i knights = _mm256_load_si256((__m256i*)&pos->pieces[0][KNIGHT]);
+    
+    // Define center control masks
+    __m256i center_masks = _mm256_set_epi64x(
+        0x0000001818000000ULL,  // Central squares
+        0x00003C3C3C3C0000ULL,  // Extended center
+        0x0000000040201008ULL,  // Light square control
+        0x0000000008102040ULL   // Dark square control
+    );
+    
+    // Calculate center control using SIMD
+    __m256i center_control = _mm256_and_si256(pawns, center_masks);
+    center_control = _mm256_or_si256(center_control, _mm256_and_si256(knights, center_masks));
+    
+    return center_control;
+}
+
+__m256i evaluate_king_safety_early_simd(const Position* pos) {
+    // Load king positions
+    __m256i white_king = _mm256_set1_epi64x(pos->pieces[WHITE][KING]);
+    __m256i black_king = _mm256_set1_epi64x(pos->pieces[BLACK][KING]);
+    
+    // Define king safety masks
+    __m256i king_masks = _mm256_set_epi64x(
+        0x000000000000FF00ULL,  // White king zone
+        0x000000FF00000000ULL,  // Black king zone
+        0x00000000000000FFULL,  // White king position
+        0x00000000FF000000ULL   // Black king position
+    );
+    
+    // Calculate king safety using SIMD
+    __m256i king_safety = _mm256_and_si256(white_king, king_masks);
+    king_safety = _mm256_or_si256(king_safety, _mm256_and_si256(black_king, king_masks));
+    
+    return king_safety;
+}
+
+__m256i evaluate_endgame_patterns_simd(const Position* pos) {
+    // Load piece positions
+    __m256i pieces = _mm256_load_si256((__m256i*)pos->pieces);
+    
+    // Define endgame pattern masks
+    __m256i endgame_masks = _mm256_set_epi64x(
+        0x0000000000FF0000ULL,  // Enemy king zone
+        0x00000000FF000000ULL,  //  advance
+        0x000000FF00000000ULL,  // King zone
+        0x0000FF0000000000ULL   // Rook cutting off king
+    );
+    
+    // Evaluate endgame patterns using SIMD
+    __m256i endgame_patterns = _mm256_and_si256(pieces, endgame_masks);
+    
+    return endgame_patterns;
+}
+
+__m256i evaluate_winning_potential_simd(const Position* pos) {
+    // Load piece positions
+    __m256i pieces = _mm256_load_si256((__m256i*)pos->pieces);
+    
+    // Define winning potential masks
+    __m256i win_masks = _mm256_set_epi64x(
+        0x0000000000000080ULL,  // Enemy king
+        0x0000000000080000ULL,  //  position
+        0x0000000000800000ULL,  // King position
+        0x0000008000000000ULL   // Rook position
+    );
+    
+    // Evaluate winning potential using SIMD
+    __m256i win_potential = _mm256_and_si256(pieces, win_masks);
+    
+    return win_potential;
+}
+
+__m256i evaluate_fortress_detection_simd(const Position* pos) {
+    // Load piece positions
+    __m256i pieces = _mm256_load_si256((__m256i*)pos->pieces);
+    
+    // Define fortress detection masks
+    __m256i fortress_masks = _mm256_set_epi64x(
+        0x0000000000000000ULL,  // Enemy king
+        0x0000000000000000ULL,  //  position
+        0x0000000000000000ULL,  // King position
+        0x0000000000000000ULL   // Rook position
+    );
+    
+    // Evaluate fortress detection using SIMD
+    __m256i fortress_detection = _mm256_and_si256(pieces, fortress_masks);
+    
+    return fortress_detection;
+}
+
+
 __m256i calculate_doubled_s_simd(__m256i white_s, __m256i black_s) {
     // Calculate doubled s using SIMD
     __m256i white_doubled = _mm256_and_si256(white_s, _mm256_slli_epi64(white_s, 8));
@@ -434,7 +757,7 @@ __m256i calculate_isolated_s_simd(__m256i white_s, __m256i black_s) {
 }
 
 // SIMD-optimized  structure evaluation for both openings
-static __m256i evaluate__structure_simd(const Position* pos) {
+static __m256i evaluate_structure_simd(const Position* pos) {
     // Load  positions
     __m256i white_s = _mm256_load_si256((__m256i*)&pos->pieces[WHITE][0]);
     __m256i black_s = _mm256_load_si256((__m256i*)&pos->pieces[BLACK][0]);

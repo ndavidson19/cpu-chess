@@ -54,7 +54,7 @@ chess_engine = Extension(
         'core/move',
         np.get_include()
     ],
-    extra_compile_args=['-mavx2', '-O3', '-march=native', '-ffast-math', '-fopenmp'],
+    extra_compile_args=['-mavx2', '-O3', '-march=native', '-ffast-math', '-fopenmp', '-v'],
     extra_link_args=['-lm', '-fopenmp'],
 )
 

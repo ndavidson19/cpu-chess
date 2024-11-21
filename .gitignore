@@ -2,3 +2,6 @@ cpu_chess.egg-info/
 build
 __pycache__/
 lib/cpu_chess.so
+/docs/architecture.md
+/docs/c-api.md
+/docs/python-api.md

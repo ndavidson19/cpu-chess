@@ -40,11 +40,8 @@ class ChessBot:
         
         # Initialize components that use our C backend
         self.evaluator = get_evaluator()
-        self.searcher = Searcher(
-            evaluator=self.evaluator,
-            tt_size=self.config.tt_size
-        )
-        
+        self.searcher = Searcher(tt_size=self.config.tt_size)  # Just pass tt_size
+
         # Configure search parameters
         self._configure_search()
         
@@ -63,16 +60,16 @@ class ChessBot:
 
     def select_move(self, board_fen: str) -> str:
         """Select best move for the given position."""
-        # Convert FEN directly to our C Position structure
+        # Convert FEN to Position at entry point
         position = self._fen_to_position(board_fen)
         
-        # Calculate time allocation
+        # Calculate time allocation using Position
         time_for_move = self._calculate_time_allocation(position)
         
-        # Search using our optimized C code
+        # Search using our optimized C code with Position
         start_time = time.time()
         best_move, score, pv = self.searcher.search(
-            position,
+            position=position,  # Pass Position object
             time_limit=int(time_for_move * 1000),
             depth=self.config.max_depth
         )
@@ -81,12 +78,15 @@ class ChessBot:
         self.total_search_time += time.time() - start_time
         self.positions_evaluated += self.searcher.context.stats.nodes
         
-        # Convert C move format to UCI string
-        return self._move_to_uci(best_move)
+        return best_move
 
     def _fen_to_position(self, fen: str) -> Position:
         """Convert FEN string to our C Position structure"""
         position = Position()
+
+        # Initialize arrays properly
+        position.pieces = ((c_uint64 * 6) * 2)()
+        position.occupied = (c_uint64 * 2)()
         
         # Split FEN into components
         parts = fen.split()

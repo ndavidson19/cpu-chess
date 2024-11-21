@@ -134,17 +134,14 @@ class Searcher:
         params.lmr_threshold = 4
         return params
 
-    def search(self, fen, time_limit=None, depth=None):
+    def search(self, position: Position, time_limit=None, depth=None):
         """
         Search a position with optional time and depth limits
-
+        
         Args:
-            fen: FEN string representing the position
+            position: Position object representing the current position
             time_limit: Time limit in milliseconds
             depth: Maximum depth to search
-
-        Returns:
-            tuple: (best_move_uci, score, principal_variation_uci)
         """
         # Update search parameters
         if time_limit is not None:
@@ -152,11 +149,22 @@ class Searcher:
         if depth is not None:
             self.params.max_depth = depth
 
-        # Convert FEN to Position
-        position = self._fen_to_position(fen)
+        # Create a proper Position pointer
+        position_struct = Position()
+        # Copy all fields from input position
+        position_struct.pieces = position.pieces
+        position_struct.occupied = position.occupied
+        position_struct.all_occupied = position.all_occupied
+        position_struct.side_to_move = position.side_to_move
+        position_struct.castling_rights = position.castling_rights
+        position_struct.ep_square = position.ep_square
+        position_struct.half_moves = position.half_moves
+        position_struct.full_moves = position.full_moves
+        
+        # Create proper pointer
+        position_ptr = pointer(position_struct)
 
         # Start search
-        position_ptr = pointer(position)
         result = self.lib.search_position(
             position_ptr,
             pointer(self.params),
@@ -170,61 +178,7 @@ class Searcher:
             for i in range(result.pv.length)
         ]
 
-        # Optionally print statistics
-        # self._print_stats(result.stats)
-
         return best_move, result.score, pv_moves
-
-    def _fen_to_position(self, fen: str) -> Position:
-        """Convert FEN string to Position structure"""
-        position = Position()
-
-        # Split FEN into components
-        parts = fen.strip().split()
-        board_part = parts[0]
-        side_to_move = parts[1]
-        castling_rights = parts[2]
-        ep_square = parts[3]
-        half_moves = int(parts[4]) if len(parts) > 4 else 0
-        full_moves = int(parts[5]) if len(parts) > 5 else 1
-
-        # Initialize pieces array
-        position.pieces = ((c_uint64 * 6) * 2)()
-        position.occupied = (c_uint64 * 2)()
-
-        # Map from piece character to piece type index
-        piece_map = {
-            'P': 0, 'N': 1, 'B': 2, 'R': 3, 'Q': 4, 'K': 5,
-            'p': 0, 'n': 1, 'b': 2, 'r': 3, 'q': 4, 'k': 5
-        }
-
-        square = 56  # Start from the top-left corner (a8)
-        for char in board_part:
-            if char.isdigit():
-                square += int(char)
-            elif char == '/':
-                square -= 16  # Move to the next rank
-            else:
-                color = 0 if char.isupper() else 1  # 0 for white, 1 for black
-                piece_type = piece_map[char]
-                position.pieces[color][piece_type] |= 1 << square
-                square += 1
-
-        # Update occupancy bitboards
-        for color in range(2):
-            position.occupied[color] = 0
-            for piece_type in range(6):
-                position.occupied[color] |= position.pieces[color][piece_type]
-        position.all_occupied = position.occupied[0] | position.occupied[1]
-
-        # Set other position info
-        position.side_to_move = 0 if side_to_move == 'w' else 1
-        position.castling_rights = self._parse_castling_rights(castling_rights)
-        position.ep_square = self._parse_square(ep_square)
-        position.half_moves = half_moves
-        position.full_moves = full_moves
-
-        return position
 
     def _parse_castling_rights(self, castling: str) -> int:
         """Convert castling string to bitfield"""

@@ -236,8 +236,7 @@ void evaluate_mobility_simd(EvalContext* ctx) {
             __m256i mobility_scores = _mm256_setzero_si256();
             
             while (pieces) {
-                Bitboard piece_bb = pieces & -pieces; // Get least significant bit
-                int piece_square = __builtin_ctzll(pieces);
+                // Remove unused variables
                 Bitboard attacks = ctx->attacks[color][piece];
                 
                 // Count available moves excluding friendly pieces
@@ -252,7 +251,7 @@ void evaluate_mobility_simd(EvalContext* ctx) {
                     _mm256_mullo_epi32(counts, weights)
                 );
                 
-                pieces &= pieces - 1;  // Clear least significant bit
+                pieces &= pieces - 1;
             }
             
             // Accumulate scores with color sign
@@ -634,6 +633,155 @@ int apply_positional_rules(const EvalContext* ctx, const PositionalRule* rules, 
     
     // Apply color factor
     return ctx->turn == WHITE ? total_score : -total_score;
+}
+
+// In eval_ops.c
+void evaluate_material_simd(EvalContext* ctx) {
+   __m256i material_score = _mm256_setzero_si256();
+   
+   // Material values for pieces (P,N,B,R,Q,K)
+   const __m256i piece_values = _mm256_set_epi32(
+       20000,  // King
+       900,    // Queen
+       500,    // Rook
+       300,    // Bishop
+       300,    // Knight
+       100,    // Pawn
+       0,      // Padding
+       0       // Padding
+   );
+   
+   // Phase values for pieces (used for game stage calculation)
+   const __m256i phase_values = _mm256_set_epi32(
+       0,      // King doesn't contribute to phase
+       4,      // Queen
+       2,      // Rook
+       1,      // Bishop
+       1,      // Knight
+       0,      // Pawn doesn't contribute to phase
+       0,      // Padding
+       0       // Padding
+   );
+   
+   int total_phase = 0;
+   
+   // Evaluate material for both colors
+   for (int color = 0; color < 2; color++) {
+       __m256i piece_counts = _mm256_setzero_si256();
+       
+       // Count pieces using SIMD
+       for (int piece = 0; piece < 6; piece++) {
+           int count = __builtin_popcountll(ctx->pieces[color][piece]);
+           piece_counts = _mm256_insert_epi32(piece_counts, count, piece);
+           
+           // Accumulate phase value
+           if (piece != KING && piece != PAWN) {
+               total_phase += count * _mm256_extract_epi32(phase_values, piece);
+           }
+       }
+       
+       // Calculate material score
+       __m256i score = _mm256_mullo_epi32(piece_counts, piece_values);
+       
+       // Add or subtract based on color
+       if (color == WHITE) {
+           material_score = _mm256_add_epi32(material_score, score);
+       } else {
+           material_score = _mm256_sub_epi32(material_score, score);
+       }
+   }
+   
+   // Calculate game stage (0 = endgame, 256 = middlegame)
+   const int MAX_PHASE = 24;  // 4*Q + 2*R + 1*B + 1*N = 24
+   int phase = (total_phase * 256 + (MAX_PHASE / 2)) / MAX_PHASE;
+   if (phase > 256) phase = 256;
+   ctx->stage = phase;
+   
+   // Sum up material score
+   __m128i sum = _mm_add_epi32(
+       _mm256_extracti128_si256(material_score, 0),
+       _mm256_extracti128_si256(material_score, 1)
+   );
+   sum = _mm_add_epi32(sum, _mm_shuffle_epi32(sum, _MM_SHUFFLE(1, 0, 3, 2)));
+   sum = _mm_add_epi32(sum, _mm_shuffle_epi32(sum, _MM_SHUFFLE(0, 1, 0, 1)));
+   
+   // Store in evaluation terms
+   ctx->terms.material = _mm_cvtsi128_si32(sum);
+   
+   // Store piece counts for later use
+   for (int color = 0; color < 2; color++) {
+       for (int piece = 0; piece < 6; piece++) {
+           ctx->piece_counts[color][piece] = __builtin_popcountll(ctx->pieces[color][piece]);
+       }
+   }
+}
+
+void evaluate_piece_coordination_simd(EvalContext* ctx) {
+   __m256i total_coordination = _mm256_setzero_si256();
+   
+   // Process both colors
+   for (int color = 0; color < 2; color++) {
+       // For each piece type
+       for (int piece = KNIGHT; piece <= QUEEN; piece++) {
+           Bitboard piece_bb = ctx->pieces[color][piece];
+           
+           while (piece_bb) {
+               int square = __builtin_ctzll(piece_bb);
+               Bitboard attacks = 0;
+               
+               // Get piece attacks using all_occupied
+               switch (piece) {
+                   case KNIGHT:
+                       attacks = get_knight_attacks(square);
+                       break;
+                   case BISHOP:
+                       attacks = get_bishop_attacks(square, ctx->all_occupied);
+                       break;
+                   case ROOK:
+                       attacks = get_rook_attacks(square, ctx->all_occupied);
+                       break;
+                   case QUEEN:
+                       attacks = get_queen_attacks(square, ctx->all_occupied);
+                       break;
+               }
+               
+               // Count friendly pieces supported
+               int supported = __builtin_popcountll(attacks & ctx->occupied[color]);
+               
+               // Count enemy pieces attacked
+               int attacked = __builtin_popcountll(attacks & ctx->occupied[!color]);
+               
+               // Score for this piece
+               __m256i piece_score = _mm256_set_epi64x(
+                   supported * 2 + attacked,     // Queen score
+                   supported * 2 + attacked,     // Bishop score
+                   supported * 3,                // Knight score
+                   supported * 2 + attacked * 2  // Rook score
+               );
+               
+               // Apply weights
+               const __m256i WEIGHTS = _mm256_set_epi64x(15, 10, 8, 12);
+               __m256i weighted = _mm256_mul_epi32(piece_score, WEIGHTS);
+               
+               // Accumulate scores
+               if (color == WHITE) {
+                   total_coordination = _mm256_add_epi64(total_coordination, weighted);
+               } else {
+                   total_coordination = _mm256_sub_epi64(total_coordination, weighted);
+               }
+               
+               piece_bb &= piece_bb - 1;
+           }
+       }
+   }
+   
+   // Extract and sum all lanes
+   int64_t final_score = 0;
+   for (int i = 0; i < 4; i++) {
+       final_score += _mm256_extract_epi64(total_coordination, i);
+   }
+   
+   ctx->terms.piece_coordination = (int)final_score;
 }
 
 // Main evaluation function

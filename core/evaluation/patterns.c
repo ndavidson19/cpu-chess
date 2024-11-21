@@ -280,6 +280,27 @@ __m128i calculate_control_scores_simd(__m256i control) {
     return final_scores;
 }
 
+__m256i load_position_simd(const Position* pos) {
+    // Load position with strategically grouped pieces into 256-bit vector
+    return _mm256_set_epi64x(
+        // Pack center and kingside pieces
+        pos->pieces[WHITE][PAWN] | pos->pieces[BLACK][PAWN] |
+        pos->pieces[WHITE][KNIGHT] | pos->pieces[BLACK][KNIGHT],
+        
+        // Pack central control pieces
+        pos->pieces[WHITE][BISHOP] | pos->pieces[BLACK][BISHOP] |
+        pos->pieces[WHITE][QUEEN] | pos->pieces[BLACK][QUEEN],
+        
+        // Pack development pieces
+        pos->pieces[WHITE][ROOK] | pos->pieces[BLACK][ROOK] |
+        pos->pieces[WHITE][BISHOP] | pos->pieces[BLACK][BISHOP],
+        
+        // Pack king safety pieces
+        pos->pieces[WHITE][KING] | pos->pieces[BLACK][KING] |
+        pos->pieces[WHITE][PAWN] | pos->pieces[BLACK][PAWN]
+    );
+}
+
 // SIMD-optimized London System evaluation
 int evaluate_london_position(const Position* pos) {
     __m256i position_vector = load_position_simd(pos);
@@ -519,6 +540,49 @@ int calculate_dtm(int index, uint16_t material_key) {
     // Calculate distance to mate using DTM table
     return def->dtm_table[index];
 }
+
+bool is_endgame_material(uint16_t material_key) {
+   // Extract piece counts from material key
+   int white_pieces = (material_key >> 8) & 0xFF;
+   int black_pieces = material_key & 0xFF;
+   
+   // Count total non-pawn material
+   int total_material = white_pieces + black_pieces;
+   
+   // Define endgame thresholds
+   const int ENDGAME_MATERIAL = 16;  // Roughly equivalent to a queen + rook
+   const int PAWN_MATERIAL = 8;     // Consider pawns less important for endgame detection
+   
+   // Basic material count check
+   if (total_material <= ENDGAME_MATERIAL) {
+       return true;
+   }
+   
+   // Check specific endgame cases
+   // No queens
+   bool no_queens = !(material_key & (1 << 11)) && !(material_key & (1 << 3));
+   
+   // Only one queen
+   bool one_queen = (!(material_key & (1 << 11)) && (material_key & (1 << 3))) ||
+                   ((material_key & (1 << 11)) && !(material_key & (1 << 3)));
+   
+   // Limited minor pieces
+   int minor_pieces = ((material_key >> 9) & 3) + ((material_key >> 1) & 3); // Knights + Bishops
+   
+   if (no_queens && minor_pieces <= 4) return true;
+   if (one_queen && minor_pieces <= 2) return true;
+   
+   // Asymmetric material
+   int white_material = white_pieces - ((material_key >> 12) & 0xF); // Subtract pawns
+   int black_material = black_pieces - ((material_key >> 4) & 0xF);  // Subtract pawns
+   
+   if (abs(white_material - black_material) >= PAWN_MATERIAL) {
+       return true;
+   }
+   
+   return false;
+}
+
 
 // SIMD-optimized endgame probing
 EndgameEntry* probe_endgame_table(const Position* pos) {

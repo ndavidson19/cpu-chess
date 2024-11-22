@@ -61,16 +61,13 @@ class ChessBot:
     def select_move(self, board_fen: str) -> str:
         """Select best move for the given position."""
         # Convert FEN to Position at entry point
-        print('here')
         position = self._fen_to_position(board_fen)
         
         # Calculate time allocation using Position
-        print('here2')
         time_for_move = self._calculate_time_allocation(position)
         
         # Search using our optimized C code with Position
         start_time = time.time()
-        print('here3')
         best_move, score, pv = self.searcher.search(
             position=position,  # Pass Position object
             time_limit=int(time_for_move * 1000),
@@ -79,7 +76,6 @@ class ChessBot:
         
         # Update statistics
         self.total_search_time += time.time() - start_time
-        print('here4')
         self.positions_evaluated += self.searcher.context.stats.nodes
         
         return best_move

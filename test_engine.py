@@ -1,4 +1,5 @@
-from cpu_chess.engine import ChessBot, EngineConfig
+from core.engine import ChessBot, EngineConfig
+import time
 
 def test_engine():
     # Create engine with default config

@@ -157,7 +157,6 @@ class Searcher:
             self.params.time_limit = time_limit
         if depth is not None:
             self.params.max_depth = depth
-        print('pointers')
         # Create a proper Position pointer
         position_struct = Position()
         # Copy all fields from input position
@@ -174,7 +173,6 @@ class Searcher:
         position_ptr = pointer(position_struct)
 
         # Start search
-        print('search starts')
         result = self.lib.search_position(
             position_ptr,
             pointer(self.params),
@@ -182,7 +180,6 @@ class Searcher:
         )
 
         # Convert result
-        print('result')
         best_move = self._decode_move(result.best_move)
         pv_moves = [
             self._decode_move(result.pv.moves[i])

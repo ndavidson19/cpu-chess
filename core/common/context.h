@@ -32,14 +32,15 @@ typedef struct {
 } SearchParams;
 
 // Transposition table entry
-typedef struct {
-    uint64_t key;
-    int16_t score;
-    uint16_t move;
-    uint8_t depth;
-    uint8_t flag;
-    uint8_t age;
-} TTEntry;
+typedef struct __attribute__((aligned(8), packed)) {
+    uint64_t key;      // 8 bytes
+    int16_t score;     // 2 bytes
+    uint16_t move;     // 2 bytes
+    uint8_t depth;     // 1 byte
+    uint8_t flag;      // 1 byte
+    uint8_t age;       // 1 byte
+    uint8_t padding;   // 1 byte for alignment
+} TTEntry;             // Total: 16 bytes
 
 // Search context
 typedef struct {

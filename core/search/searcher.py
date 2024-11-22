@@ -32,12 +32,14 @@ class SearchMove(Structure):
     ]
 
 class TTEntry(Structure):
+    _pack_ = 1
     _fields_ = [
-        ("key", c_uint64),    # Position hash
-        ("score", c_int16),   # Evaluation score
-        ("move", c_uint16),   # Best move found
-        ("depth", c_uint8),   # Search depth
-        ("flag", c_uint8)     # Entry type (exact, upper, lower bound)
+        ('key', c_uint64),
+        ('score', c_int16),
+        ('move', c_uint16),
+        ('depth', c_uint8),
+        ('flag', c_uint8),
+        ('age', c_uint8)
     ]
 
 class PVLine(Structure):
@@ -67,17 +69,24 @@ class SearchParams(Structure):
     ]
 
 class SearchContext(Structure):
+    _pack_ = 1
     _fields_ = [
-        ("tt", POINTER(TTEntry)),               # Transposition table
-        ("tt_size", c_uint32),                  # Number of TT entries
-        ("history", (c_int16 * 64 * 64) * 2),   # History heuristic scores [color][from][to]
-        ("killers", (c_uint16 * 64) * 2),       # Killer moves [2 per ply][max_ply]
-        ("stats", SearchStats),                 # Search statistics
-        ("start_time", c_int64),                # Search start time
-        ("stop_search", c_bool),                # Flag to stop search
-        ("pv", PVLine),                         # Principal variation
-        ("params", SearchParams)                # Search parameters
+        ('tt', POINTER(TTEntry)),
+        ('tt_size', c_uint32),
+        ('tt_age', c_uint8),
+        ('ply', c_int),
+        ('history', (c_int16 * 64 * 64 * 2)),
+        ('killers', (c_uint16 * 64 * 2)),
+        ('stats', SearchStats),
+        ('pos', POINTER(Position)),
+        ('stop_search', c_bool),
+        ('start_time', c_int64),
+        ('pv', PVLine),
+        ('params', SearchParams)
     ]
+
+TT_DEFAULT_SIZE = 1024 * 512  # 512K entries
+
 
 class SearchResult(Structure):
     _fields_ = [
@@ -148,7 +157,7 @@ class Searcher:
             self.params.time_limit = time_limit
         if depth is not None:
             self.params.max_depth = depth
-
+        print('pointers')
         # Create a proper Position pointer
         position_struct = Position()
         # Copy all fields from input position
@@ -165,6 +174,7 @@ class Searcher:
         position_ptr = pointer(position_struct)
 
         # Start search
+        print('search starts')
         result = self.lib.search_position(
             position_ptr,
             pointer(self.params),
@@ -172,6 +182,7 @@ class Searcher:
         )
 
         # Convert result
+        print('result')
         best_move = self._decode_move(result.best_move)
         pv_moves = [
             self._decode_move(result.pv.moves[i])

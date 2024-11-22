@@ -1,0 +1,161 @@
+2024-11-21 22:32:20,250 - INFO - Starting SIMD performance test...
+2024-11-21 22:32:20,250 - INFO - Initializing ChessBot...
+2024-11-21 22:32:20,255 - INFO - ChessBot initialized successfully
+2024-11-21 22:32:20,255 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:32:20,255 - DEBUG - Starting move selection...
+2024-11-21 22:32:20,255 - DEBUG - Setting up search context...
+2024-11-21 22:32:20,255 - ERROR - Error during move selection: 'Searcher' object has no attribute 'prepare_search'
+2024-11-21 22:32:20,256 - ERROR - Traceback (most recent call last):
+  File "/home/nidavids/Downloads/cpu-chess/test_simd.py", line 33, in test_simd_performance
+    engine.searcher.prepare_search(fen)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Searcher' object has no attribute 'prepare_search'
+
+2024-11-21 22:32:20,256 - ERROR - Fatal error in test_simd_performance: 'Searcher' object has no attribute 'prepare_search'
+2024-11-21 22:32:20,257 - ERROR - Traceback (most recent call last):
+  File "/home/nidavids/Downloads/cpu-chess/test_simd.py", line 33, in test_simd_performance
+    engine.searcher.prepare_search(fen)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Searcher' object has no attribute 'prepare_search'
+
+2024-11-21 22:32:20,257 - ERROR - Test failed with error
+2024-11-21 22:32:20,258 - ERROR - Traceback (most recent call last):
+  File "/home/nidavids/Downloads/cpu-chess/test_simd.py", line 65, in <module>
+    test_simd_performance()
+  File "/home/nidavids/Downloads/cpu-chess/test_simd.py", line 33, in test_simd_performance
+    engine.searcher.prepare_search(fen)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'Searcher' object has no attribute 'prepare_search'
+
+2024-11-21 22:33:19,099 - INFO - Starting SIMD performance test...
+2024-11-21 22:33:19,099 - INFO - Initializing ChessBot...
+2024-11-21 22:33:19,104 - INFO - ChessBot initialized successfully
+2024-11-21 22:33:19,104 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:33:19,104 - DEBUG - Starting move selection...
+2024-11-21 22:33:19,104 - DEBUG - Starting search...
+2024-11-21 22:34:13,230 - INFO - Starting SIMD performance test...
+2024-11-21 22:34:13,231 - INFO - Initializing ChessBot...
+2024-11-21 22:34:13,235 - INFO - ChessBot initialized successfully
+2024-11-21 22:34:13,235 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:34:13,235 - DEBUG - Starting move selection...
+2024-11-21 22:34:13,236 - DEBUG - Starting search...
+2024-11-21 22:34:26,023 - INFO - Starting SIMD performance test...
+2024-11-21 22:34:26,024 - INFO - Initializing ChessBot...
+2024-11-21 22:34:26,028 - INFO - ChessBot initialized successfully
+2024-11-21 22:34:26,028 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:34:26,028 - DEBUG - Starting move selection...
+2024-11-21 22:34:26,028 - DEBUG - Starting search...
+2024-11-21 22:35:44,916 - INFO - Starting SIMD performance test...
+2024-11-21 22:35:44,916 - INFO - Initializing ChessBot...
+2024-11-21 22:35:44,921 - INFO - ChessBot initialized successfully
+2024-11-21 22:35:44,921 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:35:44,922 - DEBUG - Starting move selection...
+2024-11-21 22:35:44,922 - DEBUG - Starting search...
+2024-11-21 22:40:03,078 - INFO - Starting SIMD performance test...
+2024-11-21 22:40:03,078 - INFO - Initializing ChessBot...
+2024-11-21 22:40:03,082 - INFO - ChessBot initialized successfully
+2024-11-21 22:40:03,082 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:40:03,083 - DEBUG - Starting move selection...
+2024-11-21 22:40:03,083 - DEBUG - Starting search...
+2024-11-21 22:42:13,314 - INFO - Starting SIMD performance test...
+2024-11-21 22:42:13,314 - INFO - Initializing ChessBot...
+2024-11-21 22:42:13,319 - INFO - ChessBot initialized successfully
+2024-11-21 22:42:13,319 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:42:13,319 - DEBUG - Starting move selection...
+2024-11-21 22:42:13,319 - DEBUG - Starting search...
+2024-11-21 22:43:32,145 - INFO - Starting SIMD performance test...
+2024-11-21 22:43:32,145 - INFO - Initializing ChessBot...
+2024-11-21 22:43:32,149 - INFO - ChessBot initialized successfully
+2024-11-21 22:43:32,149 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:43:32,150 - DEBUG - Starting move selection...
+2024-11-21 22:43:32,150 - DEBUG - Starting search...
+2024-11-21 22:46:00,236 - INFO - Starting SIMD performance test...
+2024-11-21 22:46:00,236 - INFO - Initializing ChessBot...
+2024-11-21 22:46:00,237 - ERROR - Fatal error in test_simd_performance: Failed to load evaluator library: /home/nidavids/Downloads/cpu-chess/lib/cpu_chess.so: cannot open shared object file: No such file or directory
+2024-11-21 22:46:00,237 - ERROR - Traceback (most recent call last):
+  File "/home/nidavids/Downloads/cpu-chess/core/evaluation/evaluator.py", line 142, in _load_evaluator_lib
+    return cdll.LoadLibrary(lib_path)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/ctypes/__init__.py", line 460, in LoadLibrary
+    return self._dlltype(name)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: /home/nidavids/Downloads/cpu-chess/lib/cpu_chess.so: cannot open shared object file: No such file or directory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/nidavids/Downloads/cpu-chess/test_simd.py", line 20, in test_simd_performance
+    engine = ChessBot()
+             ^^^^^^^^^^
+  File "/home/nidavids/Downloads/cpu-chess/core/engine.py", line 42, in __init__
+    self.evaluator = get_evaluator()
+                     ^^^^^^^^^^^^^^^
+  File "/home/nidavids/Downloads/cpu-chess/core/evaluation/evaluator.py", line 412, in get_evaluator
+    _evaluator_instance = Evaluator()
+                          ^^^^^^^^^^^
+  File "/home/nidavids/Downloads/cpu-chess/core/evaluation/evaluator.py", line 125, in __init__
+    self.lib = self._load_evaluator_lib()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nidavids/Downloads/cpu-chess/core/evaluation/evaluator.py", line 144, in _load_evaluator_lib
+    raise RuntimeError(f"Failed to load evaluator library: {e}")
+RuntimeError: Failed to load evaluator library: /home/nidavids/Downloads/cpu-chess/lib/cpu_chess.so: cannot open shared object file: No such file or directory
+
+2024-11-21 22:46:00,237 - ERROR - Test failed with error
+2024-11-21 22:46:00,237 - ERROR - Traceback (most recent call last):
+  File "/home/nidavids/Downloads/cpu-chess/core/evaluation/evaluator.py", line 142, in _load_evaluator_lib
+    return cdll.LoadLibrary(lib_path)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/ctypes/__init__.py", line 460, in LoadLibrary
+    return self._dlltype(name)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/ctypes/__init__.py", line 379, in __init__
+    self._handle = _dlopen(self._name, mode)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: /home/nidavids/Downloads/cpu-chess/lib/cpu_chess.so: cannot open shared object file: No such file or directory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/nidavids/Downloads/cpu-chess/test_simd.py", line 62, in <module>
+    test_simd_performance()
+  File "/home/nidavids/Downloads/cpu-chess/test_simd.py", line 20, in test_simd_performance
+    engine = ChessBot()
+             ^^^^^^^^^^
+  File "/home/nidavids/Downloads/cpu-chess/core/engine.py", line 42, in __init__
+    self.evaluator = get_evaluator()
+                     ^^^^^^^^^^^^^^^
+  File "/home/nidavids/Downloads/cpu-chess/core/evaluation/evaluator.py", line 412, in get_evaluator
+    _evaluator_instance = Evaluator()
+                          ^^^^^^^^^^^
+  File "/home/nidavids/Downloads/cpu-chess/core/evaluation/evaluator.py", line 125, in __init__
+    self.lib = self._load_evaluator_lib()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/nidavids/Downloads/cpu-chess/core/evaluation/evaluator.py", line 144, in _load_evaluator_lib
+    raise RuntimeError(f"Failed to load evaluator library: {e}")
+RuntimeError: Failed to load evaluator library: /home/nidavids/Downloads/cpu-chess/lib/cpu_chess.so: cannot open shared object file: No such file or directory
+
+2024-11-21 22:46:07,360 - INFO - Starting SIMD performance test...
+2024-11-21 22:46:07,360 - INFO - Initializing ChessBot...
+2024-11-21 22:46:07,365 - INFO - ChessBot initialized successfully
+2024-11-21 22:46:07,365 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 22:46:07,365 - DEBUG - Starting move selection...
+2024-11-21 22:46:07,365 - DEBUG - Starting search...
+2024-11-21 22:50:31,096 - INFO - Starting SIMD performance test...
+2024-11-21 22:50:31,097 - INFO - Initializing ChessBot...
+2024-11-21 22:55:18,632 - INFO - Starting SIMD performance test...
+2024-11-21 22:55:18,632 - INFO - Initializing ChessBot...
+2024-11-21 23:04:20,112 - INFO - Starting SIMD performance test...
+2024-11-21 23:04:20,112 - INFO - Initializing ChessBot...
+2024-11-21 23:04:20,117 - INFO - ChessBot initialized successfully
+2024-11-21 23:04:20,117 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 23:04:20,117 - DEBUG - Starting move selection...
+2024-11-21 23:04:20,117 - DEBUG - Starting search...
+2024-11-21 23:04:20,117 - INFO - Move selected successfully: a1a1
+2024-11-21 23:04:20,117 - INFO - Selected move: a1a1
+2024-11-21 23:04:20,117 - INFO - Time taken: 0.000s
+2024-11-21 23:04:20,117 - INFO - Nodes searched: 0
+2024-11-21 23:04:20,118 - INFO - Nodes per second: 0
+2024-11-21 23:04:20,118 - INFO - Test completed successfully

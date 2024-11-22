@@ -13,6 +13,12 @@
 #define TT_ALPHA 1  // Upper bound
 #define TT_BETA 2   // Lower bound
 
+// Constants for TT sizing and alignment
+#define TT_ALIGNMENT 32
+#define MIN_TT_SIZE (1024)         // 1K entries minimum
+#define MAX_TT_SIZE (1024*1024*64) // 64M entries maximum
+
+
 // Search result
 typedef struct {
     uint16_t best_move;     // Best move found
@@ -23,6 +29,7 @@ typedef struct {
 
 // Core search functions
 void init_search(SearchContext* ctx, uint32_t tt_size);
+EvalContext* create_eval_context_from_search(SearchContext* search_ctx);
 SearchResult search_position(Position* pos, SearchParams* params, SearchContext* ctx);
 void cleanup_search(SearchContext* ctx);
 

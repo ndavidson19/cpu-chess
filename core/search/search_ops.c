@@ -1,10 +1,17 @@
 #include "search_ops.h"
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <errno.h>
 #include <time.h>
 #include "../evaluation/eval_ops.h"
 #include "../utils/utils.h"
 #include "../move/move.h"
+
+// Debugging
+#define DEBUG_LOG(msg, ...) \
+    fprintf(stderr, "[DEBUG] %s:%d - " msg "\n", __FILE__, __LINE__, ##__VA_ARGS__); \
+    fflush(stderr)
 
 // Constants for search
 #define INFINITY_SCORE 32000
@@ -62,19 +69,91 @@ void init_hash_keys() {
    side_key = seed * 2685821657736338717ULL;
 }
 
-// Initialize search context
+// Helper for aligned size calculation
+static size_t align_size(size_t size, size_t alignment) {
+    return (size + alignment - 1) & ~(alignment - 1);
+}
+
 void init_search(SearchContext* ctx, uint32_t tt_size) {
-    // Initialize hash keys
+    DEBUG_LOG("Initializing search context with tt_size=%u", tt_size);
+    
+    if (!ctx) {
+        DEBUG_LOG("NULL context pointer");
+        return;
+    }
+    
+    // Validate and adjust TT size
+    if (tt_size < MIN_TT_SIZE) {
+        tt_size = MIN_TT_SIZE;
+        DEBUG_LOG("TT size adjusted to minimum: %u", tt_size);
+    }
+    if (tt_size > MAX_TT_SIZE) {
+        tt_size = MAX_TT_SIZE;
+        DEBUG_LOG("TT size adjusted to maximum: %u", tt_size);
+    }
+    
+    // Zero out context first
+    memset(ctx, 0, sizeof(SearchContext));
+    
+    // Initialize hash keys first
+    DEBUG_LOG("Initializing hash keys");
     init_hash_keys();
-    ctx->tt = (TTEntry*)aligned_alloc(32, tt_size * sizeof(TTEntry));
+    
+    // Calculate aligned size
+    size_t entry_size = sizeof(TTEntry);
+    size_t total_size = (size_t)tt_size * entry_size;
+    size_t aligned_size = (total_size + TT_ALIGNMENT - 1) & ~(size_t)(TT_ALIGNMENT - 1);
+    
+    DEBUG_LOG("TT allocation details: entry_size=%zu total_size=%zu aligned_size=%zu",
+              entry_size, total_size, aligned_size);
+    
+    // Use aligned allocation
+    void* tt_mem = NULL;
+    int alloc_result = posix_memalign(&tt_mem, TT_ALIGNMENT, aligned_size);
+    
+    if (alloc_result != 0) {
+        DEBUG_LOG("TT allocation failed: %s", strerror(errno));
+        return;
+    }
+    
+    if (!tt_mem) {
+        DEBUG_LOG("TT allocation returned NULL");
+        return;
+    }
+    
+    DEBUG_LOG("TT allocated at %p", tt_mem);
+    
+    // Zero the allocated memory
+    memset(tt_mem, 0, aligned_size);
+    
+    // Set up context
+    ctx->tt = (TTEntry*)tt_mem;
     ctx->tt_size = tt_size;
-    memset(ctx->tt, 0, tt_size * sizeof(TTEntry));
+    ctx->tt_age = 0;
+    
+    // Initialize other fields
+    ctx->ply = 0;
+    ctx->pos = NULL;
+    ctx->stop_search = false;
+    ctx->start_time = 0;
+    
     memset(ctx->history, 0, sizeof(ctx->history));
     memset(ctx->killers, 0, sizeof(ctx->killers));
     memset(&ctx->stats, 0, sizeof(SearchStats));
-    ctx->stop_search = false;
+    memset(&ctx->pv, 0, sizeof(PVLine));
+    
+    // Initialize search parameters with defaults
+    ctx->params.max_depth = 6;
+    ctx->params.time_limit = 0;
+    ctx->params.use_null_move = true;
+    ctx->params.use_aspiration = true;
+    ctx->params.history_limit = 8192;
+    ctx->params.futility_margin = 100;
+    ctx->params.lmr_threshold = 3;
+    
+    DEBUG_LOG("Search context initialized successfully: tt=%p size=%u", 
+              (void*)ctx->tt, ctx->tt_size);
 }
-
 
 
 void store_tt(SearchContext* ctx, uint64_t key, int score, uint16_t move, 
@@ -139,9 +218,130 @@ TTEntry* probe_tt(const SearchContext* ctx, uint64_t key) {
     return &ctx->tt[index];
 }
 
+// Helper function to get piece bitboards (implement based on your Position structure)
+static Bitboard get_piece_bitboard(Position* pos, int color, int piece) {
+    // Implementation depends on your Position structure
+    return pos->pieces[color][piece];
+}
+
+// Helper function to get color occupancy
+static Bitboard get_color_occupancy(Position* pos, int color) {
+    Bitboard occupancy = 0ULL;
+    for (int piece = 0; piece < 6; piece++) {
+        occupancy |= pos->pieces[color][piece];
+    }
+    return occupancy;
+}
+
+// Create and initialize an EvalContext from a SearchContext
+EvalContext* create_eval_context_from_search(SearchContext* search_ctx) {
+    DEBUG_LOG("Enter create_eval_context_from_search: search_ctx=%p", (void*)search_ctx);
+    
+    // Validate search context and position
+    if (!search_ctx) {
+        DEBUG_LOG("Error: search_ctx is NULL");
+        return NULL;
+    }
+    DEBUG_LOG("Search context validation passed");
+    
+    DEBUG_LOG("Checking position pointer: pos=%p", (void*)search_ctx->pos);
+    if (!search_ctx->pos) {
+        DEBUG_LOG("Error: search_ctx->pos is NULL");
+        return NULL;
+    }
+    DEBUG_LOG("Position pointer validation passed");
+
+    // Memory allocation
+    DEBUG_LOG("Attempting to allocate EvalContext: size=%zu", sizeof(EvalContext));
+    EvalContext* eval_ctx = (EvalContext*)calloc(1, sizeof(EvalContext));
+    if (!eval_ctx) {
+        DEBUG_LOG("Error: Failed to allocate EvalContext");
+        return NULL;
+    }
+    DEBUG_LOG("EvalContext allocated successfully at %p", (void*)eval_ctx);
+
+    // Set position pointer
+    Position* pos = search_ctx->pos;
+    eval_ctx->pos = pos;
+    DEBUG_LOG("Position pointer set in eval_ctx: %p", (void*)eval_ctx->pos);
+
+    // Initialize basic fields first
+    DEBUG_LOG("Initializing basic fields");
+    eval_ctx->stage = 0;
+    eval_ctx->turn = pos->side_to_move;
+    eval_ctx->castling_rights = pos->castling_rights;
+    DEBUG_LOG("Basic fields initialized: turn=%d castling_rights=%d", 
+              eval_ctx->turn, eval_ctx->castling_rights);
+
+    // Initialize bitboard arrays to zero first
+    DEBUG_LOG("Zeroing bitboard arrays");
+    memset(eval_ctx->pieces, 0, sizeof(eval_ctx->pieces));
+    memset(eval_ctx->attacks, 0, sizeof(eval_ctx->attacks));
+    memset(eval_ctx->occupied, 0, sizeof(eval_ctx->occupied));
+    memset(eval_ctx->all_attacks, 0, sizeof(eval_ctx->all_attacks));
+    DEBUG_LOG("Bitboard arrays zeroed");
+
+    // Now try to copy bitboards
+    DEBUG_LOG("Starting bitboard initialization");
+    for (int color = 0; color < 2; color++) {
+        DEBUG_LOG("Processing color %d", color);
+        for (int piece = 0; piece < 6; piece++) {
+            DEBUG_LOG("Accessing piece bitboard: color=%d piece=%d", color, piece);
+            // Add bounds checking for array access
+            if (color >= 0 && color < 2 && piece >= 0 && piece < 6) {
+                Bitboard bb = pos->pieces[color][piece];
+                eval_ctx->pieces[color][piece] = bb;
+                eval_ctx->occupied[color] |= bb;
+                DEBUG_LOG("Copied bitboard[%d][%d] = %llx", color, piece, bb);
+            } else {
+                DEBUG_LOG("Invalid color/piece index: color=%d piece=%d", color, piece);
+                free(eval_ctx);
+                return NULL;
+            }
+        }
+    }
+
+    // Set occupied bitboard
+    eval_ctx->all_occupied = eval_ctx->occupied[0] | eval_ctx->occupied[1];
+    DEBUG_LOG("All occupied bitboard set: %llx", eval_ctx->all_occupied);
+
+    // Initialize space control and center control to zero
+    DEBUG_LOG("Initializing control bitboards");
+    for (int color = 0; color < 2; color++) {
+        eval_ctx->space_control[color] = 0ULL;
+        eval_ctx->center_control[color] = 0ULL;
+    }
+
+    // Zero out pawn structure bitboards
+    DEBUG_LOG("Initializing pawn structure bitboards");
+    for (int color = 0; color < 2; color++) {
+        eval_ctx->pawn_shields[color] = 0ULL;
+        eval_ctx->passed_pawns[color] = 0ULL;
+        eval_ctx->pawn_chains[color] = 0ULL;
+    }
+
+    DEBUG_LOG("EvalContext initialization complete: %p", (void*)eval_ctx);
+    return eval_ctx;
+}
+
 // Main alpha-beta search with modern pruning techniques
 static int alpha_beta(Position* pos, int alpha, int beta, int depth, int ply, 
                      SearchContext* ctx, PVLine* pv) {
+    DEBUG_LOG("Enter alpha_beta: depth=%d ply=%d alpha=%d beta=%d", depth, ply, alpha, beta);
+
+    if (!ctx || !pos || !pv) {
+        DEBUG_LOG("Null pointer in alpha_beta: ctx=%p pos=%p pv=%p", (void*)ctx, (void*)pos, (void*)pv);
+        return 0;
+    }
+
+    DEBUG_LOG("Checking position state: side_to_move=%d", pos->side_to_move);
+
+    DEBUG_LOG("Creating eval context: pos=%p ctx=%p", (void*)pos, (void*)ctx);
+
+    EvalContext* eval_ctx = create_eval_context_from_search(ctx);
+    if (!eval_ctx) return 0; // Handle allocation failure
+    DEBUG_LOG("Eval context created successfully: eval_ctx=%p", (void*)eval_ctx);
+
     // Check time and node limits
     if (should_stop_search(ctx)) return 0;
     
@@ -190,9 +390,13 @@ static int alpha_beta(Position* pos, int alpha, int beta, int depth, int ply,
     int move_count = generate_moves(pos, moves);
     PVLine new_pv;
     
+    DEBUG_LOG("Starting position evaluation");
+
     // Get static evaluation for pruning decisions
-    int static_eval = evaluate_position(pos);
-    
+    int static_eval = evaluate_position(eval_ctx);
+    // Clean up
+    free(eval_ctx);
+
     // Sort moves
     sort_moves(moves, move_count, ctx, ply);
     
@@ -271,11 +475,15 @@ static int alpha_beta(Position* pos, int alpha, int beta, int depth, int ply,
 
 // Quiescence search to handle tactical positions
 int quiescence_search(Position* pos, int alpha, int beta, SearchContext* ctx) {
+    EvalContext* eval_ctx = create_eval_context_from_search(ctx);
+    if (!eval_ctx) return 0;
+
     ctx->stats.nodes++;
     
     // Get static evaluation
-    int stand_pat = evaluate_position(pos);
-    
+    int stand_pat = evaluate_position(eval_ctx);
+    free(eval_ctx);
+
     // Return if we're way ahead
     if (stand_pat >= beta) return beta;
     
@@ -316,10 +524,25 @@ int quiescence_search(Position* pos, int alpha, int beta, SearchContext* ctx) {
 // Main search function
 SearchResult search_position(Position* pos, SearchParams* params, SearchContext* ctx) {
     SearchResult result = {0};
+
+    // Initialize search if not already done
+    if (!ctx->tt) {
+        DEBUG_LOG("Initializing search context");
+        init_search(ctx, 1024 * 1024);  // 1MB default table size
+    }
+
     ctx->start_time = get_current_time();
     ctx->stop_search = false;
     ctx->params = *params;
+        // Validate input parameters
+    if (!pos || !params || !ctx) {
+        DEBUG_LOG("Null pointer passed to search_position");
+        return result;
+    }
     
+    DEBUG_LOG("Starting search with max_depth=%d", params->max_depth);
+    DEBUG_LOG("Context initialized: start_time=%lld", ctx->start_time);
+
     // Iterative deepening
     int depth = 1;
     int alpha = -INFINITY_SCORE;
@@ -330,14 +553,18 @@ SearchResult search_position(Position* pos, SearchParams* params, SearchContext*
         if (depth >= 4 && params->use_aspiration) {
             alpha = result.score - 50;
             beta = result.score + 50;
+            DEBUG_LOG("Using aspiration window: alpha=%d beta=%d", alpha, beta);
+
         }
         
         // Search with current window
         PVLine pv = {0};
+        DEBUG_LOG("Starting alpha-beta search at depth %d", depth);
         int score = alpha_beta(pos, alpha, beta, depth, 0, ctx, &pv);
         
         // Handle aspiration window failures
         if (score <= alpha || score >= beta) {
+            DEBUG_LOG("Aspiration window failed, retrying with full window");
             alpha = -INFINITY_SCORE;
             beta = INFINITY_SCORE;
             score = alpha_beta(pos, alpha, beta, depth, 0, ctx, &pv);

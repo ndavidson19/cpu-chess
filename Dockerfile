@@ -19,7 +19,7 @@ COPY README.md ./
 
 # Copy source code and lib package
 COPY core ./core/
-COPY lib ./lib/ 
+COPY lib ./lib/
 
 # Build the shared object
 RUN python setup.py build_ext --inplace

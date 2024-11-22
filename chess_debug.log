@@ -159,3 +159,27 @@ RuntimeError: Failed to load evaluator library: /home/nidavids/Downloads/cpu-che
 2024-11-21 23:04:20,117 - INFO - Nodes searched: 0
 2024-11-21 23:04:20,118 - INFO - Nodes per second: 0
 2024-11-21 23:04:20,118 - INFO - Test completed successfully
+2024-11-21 23:06:28,047 - INFO - Starting SIMD performance test...
+2024-11-21 23:06:28,047 - INFO - Initializing ChessBot...
+2024-11-21 23:06:28,052 - INFO - ChessBot initialized successfully
+2024-11-21 23:06:28,052 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 23:06:28,052 - DEBUG - Starting move selection...
+2024-11-21 23:06:28,052 - DEBUG - Starting search...
+2024-11-21 23:06:28,052 - INFO - Move selected successfully: a1a1
+2024-11-21 23:06:28,052 - INFO - Selected move: a1a1
+2024-11-21 23:06:28,052 - INFO - Time taken: 0.000s
+2024-11-21 23:06:28,052 - INFO - Nodes searched: 0
+2024-11-21 23:06:28,052 - INFO - Nodes per second: 0
+2024-11-21 23:06:28,052 - INFO - Test completed successfully
+2024-11-21 23:08:38,075 - INFO - Starting SIMD performance test...
+2024-11-21 23:08:38,076 - INFO - Initializing ChessBot...
+2024-11-21 23:08:38,081 - INFO - ChessBot initialized successfully
+2024-11-21 23:08:38,081 - INFO - Testing position FEN: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+2024-11-21 23:08:38,081 - DEBUG - Starting move selection...
+2024-11-21 23:08:38,081 - DEBUG - Starting search...
+2024-11-21 23:08:38,121 - INFO - Move selected successfully: a1a1
+2024-11-21 23:08:38,121 - INFO - Selected move: a1a1
+2024-11-21 23:08:38,121 - INFO - Time taken: 0.040s
+2024-11-21 23:08:38,121 - INFO - Nodes searched: 1241513984
+2024-11-21 23:08:38,121 - INFO - Nodes per second: 31,276,312,332
+2024-11-21 23:08:38,121 - INFO - Test completed successfully

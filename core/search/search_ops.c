@@ -523,47 +523,55 @@ int quiescence_search(Position* pos, int alpha, int beta, SearchContext* ctx) {
 
 // Main search function
 SearchResult search_position(Position* pos, SearchParams* params, SearchContext* ctx) {
+    DEBUG_LOG("Enter search_position: pos=%p params=%p ctx=%p", 
+              (void*)pos, (void*)params, (void*)ctx);
+    
     SearchResult result = {0};
-
-    // Initialize search if not already done
-    if (!ctx->tt) {
-        DEBUG_LOG("Initializing search context");
-        init_search(ctx, 1024 * 1024);  // 1MB default table size
-    }
-
-    ctx->start_time = get_current_time();
-    ctx->stop_search = false;
-    ctx->params = *params;
-        // Validate input parameters
+    
+    // Validate inputs
     if (!pos || !params || !ctx) {
         DEBUG_LOG("Null pointer passed to search_position");
         return result;
     }
     
-    DEBUG_LOG("Starting search with max_depth=%d", params->max_depth);
-    DEBUG_LOG("Context initialized: start_time=%lld", ctx->start_time);
-
+    // Set the position in the context
+    ctx->pos = pos;
+    DEBUG_LOG("Set position in context: ctx->pos=%p", (void*)ctx->pos);
+    
+    // Update context parameters
+    ctx->start_time = get_current_time();
+    ctx->stop_search = false;
+    ctx->params = *params;
+    ctx->ply = 0;
+    memset(&ctx->stats, 0, sizeof(SearchStats));
+    
+    // Verify position was set correctly
+    if (!ctx->pos) {
+        DEBUG_LOG("Failed to set position in context");
+        return result;
+    }
+    
     // Iterative deepening
     int depth = 1;
     int alpha = -INFINITY_SCORE;
     int beta = INFINITY_SCORE;
     
     while (depth <= params->max_depth && !should_stop_search(ctx)) {
+        DEBUG_LOG("Starting search with max_depth=%d", depth);
+        
         // Aspiration windows
         if (depth >= 4 && params->use_aspiration) {
             alpha = result.score - 50;
             beta = result.score + 50;
             DEBUG_LOG("Using aspiration window: alpha=%d beta=%d", alpha, beta);
-
         }
         
         // Search with current window
         PVLine pv = {0};
-        DEBUG_LOG("Starting alpha-beta search at depth %d", depth);
         int score = alpha_beta(pos, alpha, beta, depth, 0, ctx, &pv);
         
         // Handle aspiration window failures
-        if (score <= alpha || score >= beta) {
+        if ((score <= alpha || score >= beta) && params->use_aspiration) {
             DEBUG_LOG("Aspiration window failed, retrying with full window");
             alpha = -INFINITY_SCORE;
             beta = INFINITY_SCORE;
@@ -576,10 +584,15 @@ SearchResult search_position(Position* pos, SearchParams* params, SearchContext*
             result.score = score;
             result.pv = pv;
             result.stats = ctx->stats;
+            DEBUG_LOG("Depth %d complete: move=%d score=%d nodes=%u", 
+                     depth, result.best_move, result.score, result.stats.nodes);
         }
         
         depth++;
     }
+    
+    DEBUG_LOG("Search complete: best_move=%d score=%d nodes=%u", 
+              result.best_move, result.score, result.stats.nodes);
     
     return result;
 }
